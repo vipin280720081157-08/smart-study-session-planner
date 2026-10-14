@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Smart Study Session Planner - Professional R-powered study scheduling application. Calculates exam urgency, difficulty weights, and generates realistic daily study timetables.">
+  <title>Smart Study Session Planner - R-Powered Study Timetable</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Application Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-block">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+            <path d="M8 14h.01"></path>
+            <path d="M12 14h.01"></path>
+            <path d="M16 14h.01"></path>
+            <path d="M8 18h.01"></path>
+            <path d="M12 18h.01"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Smart Study Session Planner</h1>
+          <p class="brand-subtitle">Rule-Based Academic Timetable Engine & Exam Urgency Analyzer</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Live R Backend Status Indicator -->
+        <div id="backend-status-badge" class="status-badge status-checking" title="Checking R Backend connection...">
+          <span class="status-dot"></span>
+          <span id="backend-status-text">Connecting to R...</span>
+        </div>
+        <button id="btn-load-sample" class="btn btn-secondary btn-sm" title="Load sample dataset for immediate demonstration">
+          Load Sample Data
+        </button>
+        <button id="btn-clear-all" class="btn btn-outline btn-sm" title="Clear all subjects and reset form">
+          Reset
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="main-layout">
+    <!-- Left Column: Input Form & Subject Inventory -->
+    <section class="planner-sidebar" aria-label="Planner Configuration">
+      <!-- 1. Planning Parameters Card -->
+      <div class="card param-card">
+        <h2 class="card-heading">
+          <span class="step-num">1</span> Planning Settings
+        </h2>
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="input-start-date">Start Date</label>
+            <input type="date" id="input-start-date" class="form-control" required>
+            <span class="field-hint">Day preparation begins</span>
+          </div>
+          <div class="form-group flex-1">
+            <label for="input-daily-hours">Daily Study Limit (Hours)</label>
+            <input type="number" id="input-daily-hours" class="form-control" min="0.5" max="16" step="0.5" value="4.0" required>
+            <span class="field-hint">Max hours to study per day</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Add / Edit Subject Card -->
+      <div class="card subject-form-card">
+        <h2 class="card-heading">
+          <span class="step-num">2</span> <span id="subject-form-title">Add Exam Subject</span>
+        </h2>
+        <form id="subject-form" novalidate>
+          <input type="hidden" id="edit-subject-index" value="-1">
+
+          <div class="form-group">
+            <label for="input-subject-name">Subject Name</label>
+            <input type="text" id="input-subject-name" class="form-control" placeholder="e.g., Operating Systems" maxlength="50" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="input-exam-date">Exam Date</label>
+              <input type="date" id="input-exam-date" class="form-control" required>
+              <span class="field-hint">Must be after start date</span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="select-difficulty">Difficulty Level</label>
+              <select id="select-difficulty" class="form-control">
+                <option value="Easy">Easy (1.0x)</option>
+                <option value="Medium" selected>Medium (1.5x)</option>
+                <option value="Hard">Hard (2.0x)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="input-prep-hours">Estimated Prep Required (Hours)</label>
+            <input type="number" id="input-prep-hours" class="form-control" min="1" max="200" step="1" value="12" required>
+            <span class="field-hint">Total revision hours needed before exam</span>
+          </div>
+
+          <div class="form-actions-inline">
+            <button type="submit" id="btn-save-subject" class="btn btn-primary flex-1">
+              + Add Subject
+            </button>
+            <button type="button" id="btn-cancel-edit" class="btn btn-outline" style="display: none;">
+              Cancel
+            </button>
+          </div>
+        </form>
+
+        <!-- Validation Alert Banner -->
+        <div id="form-validation-alert" class="alert alert-error" style="display: none;" role="alert">
+          <span class="alert-icon">!</span>
+          <span id="form-validation-msg">Validation error message</span>
+        </div>
+      </div>
+
+      <!-- 3. Configured Subjects Inventory Card -->
+      <div class="card subjects-list-card">
+        <div class="card-header-flex">
+          <h2 class="card-heading">
+            <span class="step-num">3</span> Configured Subjects (<span id="subject-count-badge">0</span>)
+          </h2>
+          <span class="sub-caption">Click to edit or remove</span>
+        </div>
+
+        <div id="subjects-container" class="subjects-container">
+          <!-- Dynamically populated or empty state -->
+        </div>
+
+        <!-- Master Calculate CTA -->
+        <div class="generate-cta-box">
+          <button id="btn-generate-plan" class="btn btn-success btn-lg btn-block">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Generate Study Timetable in R
+          </button>
+          <span class="cta-subtext">Computes exam urgency, priority scoring, and daily session allocations via R</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Results Dashboard & Timetable Display -->
+    <section class="planner-workspace" aria-label="Study Results and Timetable">
+      <!-- Empty Initial State (Before calculation) -->
+      <div id="empty-state-card" class="card empty-state-box">
+        <div class="empty-icon-wrap" aria-hidden="true">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#68846f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        <h3 class="empty-title">Ready to Plan Your Study Sessions</h3>
+        <p class="empty-desc">
+          Add your subjects and exam dates on the left or click <strong>Load Sample Data</strong> to explore a pre-populated study plan.
+          The R analytical backend will evaluate exam urgency, calculate difficulty scores, and allocate realistic daily study sessions.
+        </p>
+        <button id="btn-empty-load-sample" class="btn btn-primary">
+          Load Sample Subjects & Generate Plan
+        </button>
+      </div>
+
+      <!-- Loading State Overlay -->
+      <div id="loading-state-card" class="card loading-box" style="display: none;">
+        <div class="spinner"></div>
+        <h3>Executing R Scheduling Algorithm...</h3>
+        <p>Calculating days remaining, urgency vectors, and balanced daily study allocations.</p>
+      </div>
+
+      <!-- Dashboard Results (Shown after calculation) -->
+      <div id="results-dashboard" style="display: none;">
+        <!-- Top KPI Stats Row -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Subjects & Horizon</div>
+            <div class="kpi-value" id="kpi-subjects-horizon">0 Subj / 0 Days</div>
+            <div class="kpi-sub" id="kpi-date-range">From -- to --</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Required Preparation</div>
+            <div class="kpi-value" id="kpi-required-hours">0.0 hrs</div>
+            <div class="kpi-sub" id="kpi-daily-target">At 0.0 hrs daily limit</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Scheduled Sessions</div>
+            <div class="kpi-value" id="kpi-scheduled-hours">0.0 hrs</div>
+            <div class="kpi-sub" id="kpi-completion-rate">0.0% of goal scheduled</div>
+          </div>
+          <div class="kpi-card" id="kpi-card-verdict">
+            <div class="kpi-label">Feasibility Verdict</div>
+            <div class="kpi-value" id="kpi-verdict-text">Feasible</div>
+            <div class="kpi-sub" id="kpi-unscheduled-text">0.0 hrs unscheduled</div>
+          </div>
+        </div>
+
+        <!-- Feasibility Alert Notice (when deficit exists) -->
+        <div id="feasibility-notice" class="feasibility-notice" style="display: none;">
+          <div class="notice-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div class="notice-content">
+            <div class="notice-title" id="notice-title">Insufficient Preparation Time Detected</div>
+            <div class="notice-desc" id="notice-desc">
+              Certain subjects have more required preparation hours than can fit before their exam dates under your current daily study limit.
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard View Tabs -->
+        <div class="dashboard-tabs-container">
+          <div class="tabs-nav" role="tablist">
+            <button class="tab-btn active" id="tab-btn-timetable" role="tab" aria-selected="true" data-tab="tab-content-timetable">
+              Daily Timetable
+            </button>
+            <button class="tab-btn" id="tab-btn-priority" role="tab" aria-selected="false" data-tab="tab-content-priority">
+              Priority Ranking & Scoring
+            </button>
+            <button class="tab-btn" id="tab-btn-audit" role="tab" aria-selected="false" data-tab="tab-content-audit">
+              Subject Feasibility Audit
+            </button>
+          </div>
+
+          <!-- Tab Content 1: Daily Timetable -->
+          <div id="tab-content-timetable" class="tab-pane active" role="tabpanel">
+            <div class="tab-filter-bar">
+              <div class="filter-group">
+                <label for="select-filter-subject">Filter Subject:</label>
+                <select id="select-filter-subject" class="form-control form-control-sm">
+                  <option value="all">All Subjects</option>
+                </select>
+              </div>
+              <div class="filter-stats">
+                Showing <strong id="filter-days-count">0</strong> scheduled days
+              </div>
+            </div>
+
+            <!-- Daily Timeline Stream -->
+            <div id="timetable-timeline-container" class="timeline-container">
+              <!-- Dynamically populated daily schedule cards -->
+            </div>
+          </div>
+
+          <!-- Tab Content 2: Priority Ranking & Scoring -->
+          <div id="tab-content-priority" class="tab-pane" role="tabpanel" style="display: none;">
+            <div class="tab-info-card">
+              <h3>Transparent Priority Formula</h3>
+              <p>
+                Priority is computed deterministically in R using:
+                <code>Score = (Urgency × 50%) + (Difficulty Weight × 20) + (Daily Demand × 2.5)</code>
+                where Urgency scales with days remaining, Difficulty uses multipliers (Easy: 1.0x, Medium: 1.5x, Hard: 2.0x),
+                and Daily Demand measures needed study hours divided by eligible days before the exam.
+              </p>
+            </div>
+
+            <div class="table-responsive">
+              <table class="data-table" id="priority-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Subject</th>
+                    <th>Exam Date</th>
+                    <th>Days Left</th>
+                    <th>Difficulty</th>
+                    <th>Daily Demand</th>
+                    <th>Score / Tier</th>
+                    <th>Ranking Explanation</th>
+                  </tr>
+                </thead>
+                <tbody id="priority-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab Content 3: Subject Feasibility Audit -->
+          <div id="tab-content-audit" class="tab-pane" role="tabpanel" style="display: none;">
+            <div class="table-responsive">
+              <table class="data-table" id="audit-table">
+                <thead>
+                  <tr>
+                    <th>Subject</th>
+                    <th>Exam Date</th>
+                    <th>Required Hours</th>
+                    <th>Scheduled Hours</th>
+                    <th>Unscheduled</th>
+                    <th>Completion %</th>
+                    <th>Feasibility Status</th>
+                    <th>Planning Note & Guidance</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-table-body">
+                  <!-- Populated dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Methodology & Rules Guide (Footer Accordion) -->
+  <section class="methodology-section" aria-label="Methodology & Mathematical Foundation">
+    <div class="methodology-card">
+      <h2 class="methodology-heading">System Rules & Algorithmic Principles</h2>
+      <div class="methodology-grid">
+        <div class="methodology-item">
+          <h3>1. Strict Exam Boundary</h3>
+          <p>A subject is never scheduled on or after its exam date. Preparation sessions strictly take place in the window before exam day.</p>
+        </div>
+        <div class="methodology-item">
+          <h3>2. Daily Hour Ceiling</h3>
+          <p>Total scheduled sessions for any single day will never exceed your designated daily study limit, protecting against burnout.</p>
+        </div>
+        <div class="methodology-item">
+          <h3>3. Multi-Pass Allocation</h3>
+          <p>Time is distributed in balanced 1.0 to 2.0 hour study blocks across active subjects, prioritizing nearest exam deadlines first.</p>
+        </div>
+        <div class="methodology-item">
+          <h3>4. Transparent Feasibility</h3>
+          <p>When available days and daily capacity are mathematically insufficient to cover estimated hours, remaining hours are flagged explicitly as an unscheduled deficit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p>Smart Study Session Planner &bull; Base R &amp; Plumber Analytical Engine &bull; Deterministic Productivity Architecture</p>
+      <p class="footer-note">Note: Study plans represent deterministic heuristic schedules designed to guide consistent daily preparation.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# R Environment & Session Artifacts
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+
+# Temporary & Cache Files
+*.tmp
+*.temp
+__pycache__/
+.cache/
+
+# Operating System Files
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.DS_Store
+
+# Editor Configurations
+.vscode/
+.idea/
